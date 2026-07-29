@@ -1,3 +1,3 @@
-APP_STL := c++_static
-APP_CPPFLAGS := -std=c++17 -fexceptions -frtti
+APP_ABI := all
 APP_PLATFORM := android-21
+APP_STL := c++_static

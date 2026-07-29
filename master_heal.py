@@ -185,76 +185,91 @@ def apply_ai_patches(ai_response):
 
 def master_loop():
     print("==================================================")
-    print(" Starting Full-Auto Master Healer (Fixed Network Mode)")
+    print(" Starting Full-Auto Master Healer (Indestructible Mode)")
     print("==================================================")
 
     last_processed_run_id = None
 
     while True:
         try:
-            subprocess.run("termux-wake-lock", shell=True, capture_output=True)
-        except Exception:
-            pass
+            try:
+                subprocess.run("termux-wake-lock", shell=True, capture_output=True)
+            except Exception:
+                pass
 
-        print("[*] Checking GitHub for active workflow run...")
-        run_id, status = get_latest_workflow_run()
-        
-        # Agar current run wahi hai jo hum process kar chuke hain, tabhi skip karo
-        if not run_id or run_id == last_processed_run_id:
-            time.sleep(15)
-            continue
-
-        print(f"[*] Monitoring Workflow Run ID: {run_id} | Status: {status}")
-
-        while status in ["queued", "in_progress"]:
-            time.sleep(15)
-            _, status = get_latest_workflow_run()
-            print(f"[*] Build is {status}... waiting for it to finish...")
-
-        url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}"
-        run_details = requests.get(url, headers=HEADERS).json()
-        conclusion = run_details.get("conclusion")
-
-        if conclusion == "success":
-            print("\n==================================================")
-            print(" SUCCESS! Build passed cleanly across all files!")
-            print("==================================================")
-            last_processed_run_id = run_id
-            print("[*] Waiting for new builds...\n")
-            continue
+            print("[*] Checking GitHub for active workflow run...")
+            run_id, status = get_latest_workflow_run()
             
-        elif conclusion in ["failure", "cancelled", "timed_out"]:
-            print(f"[!] Build failed with conclusion: {conclusion}. Initiating Auto-Heal...")
-            
-            # Logs API se nikaalo (direct text format)
-            logs = get_workflow_logs(run_id)
-
-            if "Log fetch error" in logs:
-                print("[!] Skipping AI processing due to GitHub network error. Will retry the same run in 30s...")
-                time.sleep(30)
-                continue # last_processed_run_id update NAI hoga, isliye next loop me dobara try karega!
-
-            print("[*] Analyzing errors with Gemini AI...")
-            ai_fix = ask_gemini_http(logs)
-
-            print("[*] Automatically applying AI fixes to local files...")
-            applied_changes = apply_ai_patches(ai_fix)
-
-            if applied_changes:
-                print(f"[+] CHANGES APPLIED: {', '.join(applied_changes)}")
-                run_cmd("git add .")
-                run_cmd('git commit -m "Auto-fix applied by Full-Auto master_heal.py"')
-                run_cmd("git push origin main --force")
-                print("[+] Pushed code updates to GitHub!")
-                
-                print("[+] Triggering a new workflow build to test the fix...")
-                trigger_workflow_dispatch()
-                last_processed_run_id = run_id # Successfully push hua, abhi ID update karo
-                time.sleep(20)
-            else:
-                print("[!] No patch blocks found. Saved full response to ai_fix_suggestion.txt")
-                last_processed_run_id = run_id # Gemini ko error nahi mila, ID update kardo taki stuck na ho
+            if not run_id or run_id == last_processed_run_id:
                 time.sleep(15)
+                continue
+
+            print(f"[*] Monitoring Workflow Run ID: {run_id} | Status: {status}")
+
+            while status in ["queued", "in_progress"] or status is None:
+                time.sleep(15)
+                _, status = get_latest_workflow_run()
+                if status is None:
+                    print("[!] Internet disconnected. Waiting for network...")
+                else:
+                    print(f"[*] Build is {status}... waiting for it to finish...")
+
+            url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}"
+            
+            # API Request wrapped in Try-Except to prevent crashing if net drops
+            try:
+                run_details = requests.get(url, headers=HEADERS, timeout=15).json()
+                conclusion = run_details.get("conclusion")
+            except Exception as e:
+                print(f"[!] Network error checking build conclusion: {e}. Retrying...")
+                time.sleep(15)
+                continue
+
+            if conclusion == "success":
+                print("\n==================================================")
+                print(" SUCCESS! Build passed cleanly across all files!")
+                print("==================================================")
+                last_processed_run_id = run_id
+                print("[*] Waiting for new builds...\n")
+                continue
+                
+            elif conclusion in ["failure", "cancelled", "timed_out"]:
+                print(f"[!] Build failed with conclusion: {conclusion}. Initiating Auto-Heal...")
+                
+                logs = get_workflow_logs(run_id)
+
+                if "Log fetch error" in logs:
+                    print("[!] Skipping AI processing due to GitHub network error. Will retry the same run in 30s...")
+                    time.sleep(30)
+                    continue 
+
+                print("[*] Analyzing errors with Gemini AI...")
+                ai_fix = ask_gemini_http(logs)
+
+                print("[*] Automatically applying AI fixes to local files...")
+                applied_changes = apply_ai_patches(ai_fix)
+
+                if applied_changes:
+                    print(f"[+] CHANGES APPLIED: {', '.join(applied_changes)}")
+                    run_cmd("git add .")
+                    run_cmd('git commit -m "Auto-fix applied by Full-Auto master_heal.py"')
+                    run_cmd("git push origin main --force")
+                    print("[+] Pushed code updates to GitHub!")
+                    
+                    print("[+] Triggering a new workflow build to test the fix...")
+                    trigger_workflow_dispatch()
+                    last_processed_run_id = run_id
+                    time.sleep(20)
+                else:
+                    print("[!] No patch blocks found. Saved full response to ai_fix_suggestion.txt")
+                    last_processed_run_id = run_id
+                    time.sleep(15)
+
+        except Exception as e:
+            # Absolute fallback: if anything else crashes, catch it and keep loop alive
+            print(f"\n[CRITICAL ERROR] Script encountered an issue: {e}")
+            print("[*] Don't worry, restarting loop in 15 seconds...\n")
+            time.sleep(15)
 
 if __name__ == "__main__":
     master_loop()
