@@ -4,11 +4,20 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := module
 
-# Dynamically discover all .cpp and .c source files in the directory
-LOCAL_SRC_FILES := $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/*.cpp $(LOCAL_PATH)/*.c))
+LOCAL_CPPFLAGS += -std=c++17
+LOCAL_CPP_FEATURES := rtti exceptions
 
-LOCAL_LDLIBS := -llog
-LOCAL_CFLAGS := -Wall -O3
-LOCAL_CPPFLAGS := -std=c++20
+LOCAL_C_INCLUDES := $(LOCAL_PATH) \
+                    $(LOCAL_PATH)/imgui \
+                    $(LOCAL_PATH)/imgui/backends \
+                    $(LOCAL_PATH)/include \
+                    $(LOCAL_PATH)/includes
+
+LOCAL_SRC_FILES := $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/*.cpp)) \
+                   $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/*.c)) \
+                   $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/imgui/*.cpp)) \
+                   $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/imgui/backends/*.cpp))
+
+LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv3
 
 include $(BUILD_SHARED_LIBRARY)
