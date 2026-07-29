@@ -7,28 +7,23 @@ LOCAL_MODULE := module
 LOCAL_CPPFLAGS := -std=c++17 -fpermissive -Wno-error -fdeclspec -fexceptions -frtti -fvisibility=hidden
 LOCAL_CFLAGS := -fvisibility=hidden -Wno-error
 
-# 1. Saare Includes (ImGui aur Headers ke sath)
 LOCAL_C_INCLUDES := $(LOCAL_PATH) \
-                    $(LOCAL_PATH)/Include \
-                    $(LOCAL_PATH)/Headers \
-                    $(LOCAL_PATH)/External/ImGui \
-                    $(LOCAL_PATH)/External/KittyMemory \
-                    $(LOCAL_PATH)/External/Dobby
+                    $(LOCAL_PATH)/../cpp \
+                    $(LOCAL_PATH)/../cpp/Headers \
+                    $(LOCAL_PATH)/../cpp/External/ImGui \
+                    $(LOCAL_PATH)/../cpp/External/KittyMemory \
+                    $(LOCAL_PATH)/../cpp/External/Dobby
 
-# 2. Main C++ Files
 LOCAL_SRC_FILES := \
-    Main.cpp \
-    ModMenu.cpp \
-    Drawing.cpp \
-    Utility.cpp
+    ../cpp/Main.cpp \
+    ../cpp/ModMenu.cpp \
+    ../cpp/Drawing.cpp \
+    ../cpp/Utility.cpp \
+    ../cpp/External/ImGui/imgui.cpp \
+    ../cpp/External/ImGui/imgui_draw.cpp \
+    ../cpp/External/ImGui/imgui_tables.cpp \
+    ../cpp/External/ImGui/imgui_widgets.cpp
 
 LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv2
 
-# 3. External Libraries Link
-LOCAL_STATIC_LIBRARIES := libimgui libkitty libdobby
-
 include $(BUILD_SHARED_LIBRARY)
-
-# 4. External Android.mk call
-include $(LOCAL_PATH)/External/Android.mk
-
