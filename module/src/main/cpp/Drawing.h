@@ -1,4 +1,4 @@
-#include "Drawing.h"
+#pragma once
 
 #include <cstdio>
 #include <cstdlib>
@@ -15,6 +15,4 @@
 #include <utility>
 #include <unistd.h>
 
-void DrawMenu() {
-    // Menu drawing routines
-}
+void DrawMenu();
