@@ -98,13 +98,23 @@ def ask_gemini_http(error_logs):
     print(f"[*] Using Model: {model_name}...")
 
     prompt = f"""
-You are an expert Android NDK, C++, CMake, and Gradle build engineer. 
-The user wants to migrate/use CMake instead of Android.mk. The following GitHub Actions workflow build failed or needs configuration fixes for CMake.
-Analyze the error logs and provide the exact file modifications using this exact block format:
+You are an expert Android NDK, C++, Android.mk, CMake, and Gradle senior build engineer.
+Analyze the following GitHub Actions workflow build failure error logs.
+You have FULL READ, WRITE, CREATE, and DELETE permissions across the repository files. 
+- Default to fixing errors using the existing setup (e.g., Android.mk / ndkBuild).
+- ONLY migrate to CMake or remove Android.mk if it is strictly necessary to resolve the build failure.
+- If you decide to delete a file or create a new one (like CMakeLists.txt), specify it clearly.
 
+You MUST output the exact file modifications or deletions using these exact block formats:
+
+To modify or create a file:
 === FILE: path/to/file ===
-[Corrected file or configuration content here]
+[File content here]
 === END FILE ===
+
+To delete an obsolete file (like Android.mk if migrating):
+=== DELETE: path/to/file ===
+=== END DELETE ===
 
 ERROR LOGS:
 {error_logs[-4000:]}
@@ -125,28 +135,39 @@ ERROR LOGS:
         return f"API Error: {str(e)}"
 
 def apply_ai_patches(ai_response):
-    pattern = r"=== FILE:\s*(.*?)===\s*\n(.*?)\s*=== END FILE ==="
-    matches = re.findall(pattern, ai_response, re.DOTALL)
+    changes_made = []
 
-    if not matches:
-        with open("ai_fix_suggestion.txt", "w", encoding="utf-8") as f:
-            f.write(ai_response)
-        return []
-
-    patched_files = []
-    for file_path, content in matches:
+    # Handle File Updates/Creations
+    pattern_file = r"=== FILE:\s*(.*?)===\s*\n(.*?)\s*=== END FILE ==="
+    matches_file = re.findall(pattern_file, ai_response, re.DOTALL)
+    for file_path, content in matches_file:
         file_path = file_path.strip()
         dir_name = os.path.dirname(file_path)
         if dir_name and not os.path.exists(dir_name):
             os.makedirs(dir_name, exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content.strip() + "\n")
-        patched_files.append(file_path)
-    return patched_files
+        changes_made.append(f"Updated/Created: {file_path}")
+
+    # Handle File Deletions
+    pattern_del = r"=== DELETE:\s*(.*?)===\s*=== END DELETE ==="
+    matches_del = re.findall(pattern_del, ai_response, re.DOTALL)
+    for file_path in matches_del:
+        file_path = file_path.strip()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            changes_made.append(f"Deleted: {file_path}")
+
+    if not changes_made:
+        with open("ai_fix_suggestion.txt", "w", encoding="utf-8") as f:
+            f.write(ai_response)
+        return []
+
+    return changes_made
 
 def master_loop():
     print("==================================================")
-    print(" Starting Full-Auto Master Healer (CMake Migration Mode)")
+    print(" Starting Full-Auto Master Healer (Smart-Decision Mode)")
     print("==================================================")
 
     last_processed_run_id = None
@@ -188,13 +209,13 @@ def master_loop():
             print("[*] Sending error logs to Gemini using rotating models & keys...")
             ai_fix = ask_gemini_http(logs)
 
-            print("[*] Automatically rewriting files based on AI patches...")
-            fixed_files = apply_ai_patches(ai_fix)
+            print("[*] Automatically applying AI patches & file changes...")
+            applied_changes = apply_ai_patches(ai_fix)
 
-            if fixed_files:
-                print(f"[+] FIXED FILES: {', '.join(fixed_files)}")
+            if applied_changes:
+                print(f"[+] CHANGES APPLIED: {', '.join(applied_changes)}")
                 run_cmd("git add .")
-                run_cmd('git commit -m "Auto-fix CMake configuration via master_heal.py"')
+                run_cmd('git commit -m "Auto-fix applied by master_heal.py with full permissions"')
                 run_cmd("git push origin main --force")
                 print("[+] Pushed code updates to GitHub, triggering workflow...")
                 trigger_workflow_dispatch()
