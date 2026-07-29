@@ -4,7 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.0.2'
+        classpath 'com.android.tools.build:gradle:8.1.0'
     }
 }
 
@@ -12,6 +12,19 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+    
+    // Dynamically inject namespace for AGP 8.0+ compatibility
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            try {
+                if (project.android.namespace == null) {
+                    project.android.namespace = "com.reveny.zygisktest." + project.name.replaceAll("[^a-zA-Z0-9_]", "_")
+                }
+            } catch (Throwable t) {
+                // Safeguard against legacy AGP versions where property might not exist
+            }
+        }
     }
 }
 
