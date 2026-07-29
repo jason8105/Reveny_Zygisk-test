@@ -3,9 +3,6 @@ import time
 import subprocess
 import requests
 import re
-import zipfile
-import io
-import shutil
 
 # API Keys aur Model rotation pool
 API_KEYS_POOL = {
@@ -65,30 +62,44 @@ def get_latest_workflow_run():
     except Exception:
         return None, None
 
-def get_workflow_logs(run_id):
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}/logs"
-    try:
-        response = requests.get(url, headers=HEADERS, allow_redirects=True, timeout=120)
-        if response.status_code == 200:
-            log_dir = "downloaded_logs"
-            z = zipfile.ZipFile(io.BytesIO(response.content))
-            z.extractall(log_dir)
+def get_workflow_logs(run_id, max_retries=5):
+    print("[*] Fetching failed job details to get direct text logs...")
+    jobs_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}/jobs"
+    
+    for attempt in range(max_retries):
+        try:
+            res = requests.get(jobs_url, headers=HEADERS, timeout=30)
+            if res.status_code != 200:
+                print(f"[!] Failed to get jobs. Status {res.status_code}. Retrying...")
+                time.sleep(5)
+                continue
+                
+            jobs = res.json().get("jobs", [])
             all_logs = ""
-            for root, dirs, files in os.walk(log_dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    try:
-                        with open(file_path, "r", encoding="utf-8", errors="ignore") as lf:
-                            all_logs += f"\n--- {file} ---\n" + lf.read()
-                    except Exception:
-                        pass
-            if os.path.exists(log_dir):
-                shutil.rmtree(log_dir)
-            return all_logs if all_logs else "Empty log files extracted."
-        else:
-            return f"Log fetch error: Status {response.status_code}"
-    except Exception as e:
-        return f"Log fetch error: {e}"
+            
+            for job in jobs:
+                if job.get("conclusion") == "failure":
+                    job_id = job["id"]
+                    print(f"[*] Downloading text log for failed job: {job['name']}...")
+                    log_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/jobs/{job_id}/logs"
+                    
+                    log_res = requests.get(log_url, headers=HEADERS, allow_redirects=True, timeout=60)
+                    if log_res.status_code == 200:
+                        all_logs += f"\n=== Job: {job['name']} ===\n" + log_res.text
+                        print(f"[*] Log downloaded successfully for {job['name']}")
+                    else:
+                        print(f"[!] Failed to get log text. Status {log_res.status_code}")
+            
+            if all_logs:
+                return all_logs
+            else:
+                return "Empty logs or no failure found."
+
+        except Exception as e:
+            print(f"[!] Network error fetching job logs: {e}. Retrying ({attempt+1}/{max_retries})...")
+            time.sleep(10)
+            
+    return "Log fetch error: Network timeout."
 
 def ask_gemini_http(error_logs):
     prompt = f"""
@@ -119,13 +130,12 @@ ERROR LOGS:
         }]
     }
 
-    # Naya Retry aur Auto-Switch Logic
     for attempt in range(len(MODELS_POOL)):
         active_key = get_next_gemini_key()
         model_name = get_next_model()
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={active_key}"
         
-        print(f"[*] Using Model: {model_name} (Attempt {attempt + 1}/{len(MODELS_POOL)})...")
+        print(f"[*] Asking Gemini using Model: {model_name} (Attempt {attempt + 1}/{len(MODELS_POOL)})...")
         
         try:
             response = requests.post(url, json=payload, timeout=30)
@@ -175,7 +185,7 @@ def apply_ai_patches(ai_response):
 
 def master_loop():
     print("==================================================")
-    print(" Starting Full-Auto Master Healer (Smart-Decision Mode)")
+    print(" Starting Full-Auto Master Healer (Fixed Network Mode)")
     print("==================================================")
 
     last_processed_run_id = None
@@ -186,51 +196,65 @@ def master_loop():
         except Exception:
             pass
 
-        print("[*] Waiting for active workflow run...")
+        print("[*] Checking GitHub for active workflow run...")
         run_id, status = get_latest_workflow_run()
+        
+        # Agar current run wahi hai jo hum process kar chuke hain, tabhi skip karo
         if not run_id or run_id == last_processed_run_id:
-            time.sleep(10)
+            time.sleep(15)
             continue
 
         print(f"[*] Monitoring Workflow Run ID: {run_id} | Status: {status}")
 
         while status in ["queued", "in_progress"]:
-            time.sleep(10)
+            time.sleep(15)
             _, status = get_latest_workflow_run()
-            print(f"[*] Current status: {status}...")
+            print(f"[*] Build is {status}... waiting for it to finish...")
 
         url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}"
         run_details = requests.get(url, headers=HEADERS).json()
         conclusion = run_details.get("conclusion")
 
-        last_processed_run_id = run_id
-
         if conclusion == "success":
             print("\n==================================================")
             print(" SUCCESS! Build passed cleanly across all files!")
             print("==================================================")
-            break
-        else:
-            print(f"[!] Build failed with conclusion: {conclusion}. Fetching logs...")
+            last_processed_run_id = run_id
+            print("[*] Waiting for new builds...\n")
+            continue
+            
+        elif conclusion in ["failure", "cancelled", "timed_out"]:
+            print(f"[!] Build failed with conclusion: {conclusion}. Initiating Auto-Heal...")
+            
+            # Logs API se nikaalo (direct text format)
             logs = get_workflow_logs(run_id)
 
-            print("[*] Sending error logs to Gemini using rotating models & keys...")
+            if "Log fetch error" in logs:
+                print("[!] Skipping AI processing due to GitHub network error. Will retry the same run in 30s...")
+                time.sleep(30)
+                continue # last_processed_run_id update NAI hoga, isliye next loop me dobara try karega!
+
+            print("[*] Analyzing errors with Gemini AI...")
             ai_fix = ask_gemini_http(logs)
 
-            print("[*] Automatically applying AI patches & file changes...")
+            print("[*] Automatically applying AI fixes to local files...")
             applied_changes = apply_ai_patches(ai_fix)
 
             if applied_changes:
                 print(f"[+] CHANGES APPLIED: {', '.join(applied_changes)}")
                 run_cmd("git add .")
-                run_cmd('git commit -m "Auto-fix applied by master_heal.py with full permissions"')
+                run_cmd('git commit -m "Auto-fix applied by Full-Auto master_heal.py"')
                 run_cmd("git push origin main --force")
-                print("[+] Pushed code updates to GitHub, triggering workflow...")
+                print("[+] Pushed code updates to GitHub!")
+                
+                print("[+] Triggering a new workflow build to test the fix...")
                 trigger_workflow_dispatch()
-                time.sleep(15)
+                last_processed_run_id = run_id # Successfully push hua, abhi ID update karo
+                time.sleep(20)
             else:
-                print("[!] No patch blocks parsed. Saved full response to ai_fix_suggestion.txt")
-                time.sleep(10)
+                print("[!] No patch blocks found. Saved full response to ai_fix_suggestion.txt")
+                last_processed_run_id = run_id # Gemini ko error nahi mila, ID update kardo taki stuck na ho
+                time.sleep(15)
 
 if __name__ == "__main__":
     master_loop()
