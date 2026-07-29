@@ -11,12 +11,17 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        externalNativeBuild {
+            ndkBuild {
+                abiFilters 'arm64-v8a', 'armeabi-v7a'
+            }
+        }
     }
 
     externalNativeBuild {
         ndkBuild {
             path file('src/main/jni/Android.mk')
-            abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
     }
 
