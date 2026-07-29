@@ -3,34 +3,22 @@ plugins {
 }
 
 android {
+    namespace 'com.example.module'
     compileSdk 34
-    ndkVersion "25.1.8937393"
 
     defaultConfig {
-        minSdk 23  // Change applied here!
-        targetSdk 34
-
-        ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
-        }
+        minSdk 21
 
         externalNativeBuild {
             ndkBuild {
-                arguments "NDK_APPLICATION_MK:=src/main/cpp/Application.mk"
-                cppFlags "-std=c++20"
+                // Build flags, arguments, or abiFilters go here
             }
         }
     }
 
     externalNativeBuild {
         ndkBuild {
-            path "src/main/cpp/Android.mk"
+            path file('src/main/jni/Android.mk')
         }
     }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
 }
-

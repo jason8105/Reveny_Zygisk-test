@@ -8,14 +8,13 @@ import re
 API_KEYS_POOL = {
     1: os.environ.get("GEMINI_KEY_1", ""),
     2: os.environ.get("GEMINI_KEY_2", "")
-}
-
+}                                                                                                                                                                 
 MODELS_POOL = [
-    "gemini-3.5-flash",
-    "gemini-3.6-flash",
-    "gemini-1.5-flash"
+    "models/gemini-3.6-flash",
+    "models/gemini-3.5-flash",
+    "models/gemini-2.5-pro"
 ]
-
+                                                  
 current_key_id = 1
 current_model_idx = 0
 
@@ -65,7 +64,7 @@ def get_latest_workflow_run():
 def get_workflow_logs(run_id, max_retries=5):
     print("[*] Fetching failed job details to get direct text logs...")
     jobs_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}/jobs"
-    
+
     for attempt in range(max_retries):
         try:
             res = requests.get(jobs_url, headers=HEADERS, timeout=30)
@@ -73,23 +72,23 @@ def get_workflow_logs(run_id, max_retries=5):
                 print(f"[!] Failed to get jobs. Status {res.status_code}. Retrying...")
                 time.sleep(5)
                 continue
-                
+
             jobs = res.json().get("jobs", [])
             all_logs = ""
-            
+
             for job in jobs:
                 if job.get("conclusion") == "failure":
                     job_id = job["id"]
                     print(f"[*] Downloading text log for failed job: {job['name']}...")
                     log_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/jobs/{job_id}/logs"
-                    
+
                     log_res = requests.get(log_url, headers=HEADERS, allow_redirects=True, timeout=60)
                     if log_res.status_code == 200:
                         all_logs += f"\n=== Job: {job['name']} ===\n" + log_res.text
                         print(f"[*] Log downloaded successfully for {job['name']}")
                     else:
                         print(f"[!] Failed to get log text. Status {log_res.status_code}")
-            
+
             if all_logs:
                 return all_logs
             else:
@@ -98,14 +97,14 @@ def get_workflow_logs(run_id, max_retries=5):
         except Exception as e:
             print(f"[!] Network error fetching job logs: {e}. Retrying ({attempt+1}/{max_retries})...")
             time.sleep(10)
-            
+
     return "Log fetch error: Network timeout."
 
 def ask_gemini_http(error_logs):
     prompt = f"""
 You are an expert Android NDK, C++, Android.mk, CMake, and Gradle senior build engineer.
 Analyze the following GitHub Actions workflow build failure error logs.
-You have FULL READ, WRITE, CREATE, and DELETE permissions across the repository files. 
+You have FULL READ, WRITE, CREATE, and DELETE permissions across the repository files.
 - Default to fixing errors using the existing setup (e.g., Android.mk / ndkBuild).
 - ONLY migrate to CMake or remove Android.mk if it is strictly necessary to resolve the build failure.
 - If you decide to delete a file or create a new one (like CMakeLists.txt), specify it clearly.
@@ -133,10 +132,10 @@ ERROR LOGS:
     for attempt in range(len(MODELS_POOL)):
         active_key = get_next_gemini_key()
         model_name = get_next_model()
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={active_key}"
-        
+        url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={active_key}"
+
         print(f"[*] Asking Gemini using Model: {model_name} (Attempt {attempt + 1}/{len(MODELS_POOL)})...")
-        
+
         try:
             response = requests.post(url, json=payload, timeout=30)
             res_json = response.json()
@@ -199,7 +198,7 @@ def master_loop():
 
             print("[*] Checking GitHub for active workflow run...")
             run_id, status = get_latest_workflow_run()
-            
+
             if not run_id or run_id == last_processed_run_id:
                 time.sleep(15)
                 continue
@@ -215,8 +214,7 @@ def master_loop():
                     print(f"[*] Build is {status}... waiting for it to finish...")
 
             url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}"
-            
-            # API Request wrapped in Try-Except to prevent crashing if net drops
+
             try:
                 run_details = requests.get(url, headers=HEADERS, timeout=15).json()
                 conclusion = run_details.get("conclusion")
@@ -232,16 +230,16 @@ def master_loop():
                 last_processed_run_id = run_id
                 print("[*] Waiting for new builds...\n")
                 continue
-                
+
             elif conclusion in ["failure", "cancelled", "timed_out"]:
                 print(f"[!] Build failed with conclusion: {conclusion}. Initiating Auto-Heal...")
-                
+
                 logs = get_workflow_logs(run_id)
 
                 if "Log fetch error" in logs:
                     print("[!] Skipping AI processing due to GitHub network error. Will retry the same run in 30s...")
                     time.sleep(30)
-                    continue 
+                    continue
 
                 print("[*] Analyzing errors with Gemini AI...")
                 ai_fix = ask_gemini_http(logs)
@@ -255,7 +253,7 @@ def master_loop():
                     run_cmd('git commit -m "Auto-fix applied by Full-Auto master_heal.py"')
                     run_cmd("git push origin main --force")
                     print("[+] Pushed code updates to GitHub!")
-                    
+
                     print("[+] Triggering a new workflow build to test the fix...")
                     trigger_workflow_dispatch()
                     last_processed_run_id = run_id
@@ -266,7 +264,6 @@ def master_loop():
                     time.sleep(15)
 
         except Exception as e:
-            # Absolute fallback: if anything else crashes, catch it and keep loop alive
             print(f"\n[CRITICAL ERROR] Script encountered an issue: {e}")
             print("[*] Don't worry, restarting loop in 15 seconds...\n")
             time.sleep(15)
