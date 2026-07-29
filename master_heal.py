@@ -91,12 +91,6 @@ def get_workflow_logs(run_id):
         return f"Log fetch error: {e}"
 
 def ask_gemini_http(error_logs):
-    active_key = get_next_gemini_key()
-    model_name = get_next_model()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={active_key}"
-    
-    print(f"[*] Using Model: {model_name}...")
-
     prompt = f"""
 You are an expert Android NDK, C++, Android.mk, CMake, and Gradle senior build engineer.
 Analyze the following GitHub Actions workflow build failure error logs.
@@ -112,7 +106,7 @@ To modify or create a file:
 [File content here]
 === END FILE ===
 
-To delete an obsolete file (like Android.mk if migrating):
+To delete an obsolete file:
 === DELETE: path/to/file ===
 === END DELETE ===
 
@@ -124,20 +118,35 @@ ERROR LOGS:
             "parts": [{"text": prompt}]
         }]
     }
-    try:
-        response = requests.post(url, json=payload, timeout=30)
-        res_json = response.json()
-        if "candidates" in res_json:
-            return res_json["candidates"][0]["content"]["parts"][0]["text"]
-        else:
-            return f"API Error / Limit Reached: {res_json}"
-    except Exception as e:
-        return f"API Error: {str(e)}"
+
+    # Naya Retry aur Auto-Switch Logic
+    for attempt in range(len(MODELS_POOL)):
+        active_key = get_next_gemini_key()
+        model_name = get_next_model()
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={active_key}"
+        
+        print(f"[*] Using Model: {model_name} (Attempt {attempt + 1}/{len(MODELS_POOL)})...")
+        
+        try:
+            response = requests.post(url, json=payload, timeout=30)
+            res_json = response.json()
+            if "candidates" in res_json:
+                return res_json["candidates"][0]["content"]["parts"][0]["text"]
+            else:
+                error_msg = res_json.get('error', {}).get('message', 'Unknown Error')
+                print(f"[!] Model {model_name} failed: {error_msg}. Switching to next model...")
+                time.sleep(2)
+                continue
+        except Exception as e:
+            print(f"[!] Request failed for {model_name}: {str(e)}. Switching to next model...")
+            time.sleep(2)
+            continue
+
+    return f"API Error / Limit Reached: All models failed after retries."
 
 def apply_ai_patches(ai_response):
     changes_made = []
 
-    # Handle File Updates/Creations
     pattern_file = r"=== FILE:\s*(.*?)===\s*\n(.*?)\s*=== END FILE ==="
     matches_file = re.findall(pattern_file, ai_response, re.DOTALL)
     for file_path, content in matches_file:
@@ -149,7 +158,6 @@ def apply_ai_patches(ai_response):
             f.write(content.strip() + "\n")
         changes_made.append(f"Updated/Created: {file_path}")
 
-    # Handle File Deletions
     pattern_del = r"=== DELETE:\s*(.*?)===\s*=== END DELETE ==="
     matches_del = re.findall(pattern_del, ai_response, re.DOTALL)
     for file_path in matches_del:
