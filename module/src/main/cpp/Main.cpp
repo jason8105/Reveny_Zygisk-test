@@ -1,54 +1,36 @@
-//
-// Created by Reveny on 1/6/2025.
-//
-#include "Headers/ModMenu.hpp"
-#include "Include/zygisk.hpp"
+#include <jni.h>
+#include <unistd.h>
+#include <android/log.h>
+#include "zygisk.hpp"
 
-#define TARGET_PACKAGE std::string("com.innersloth.spacemafia")
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "RevenyZygisk", __VA_ARGS__)
 
 using zygisk::Api;
 using zygisk::AppSpecializeArgs;
 using zygisk::ServerSpecializeArgs;
 
-class MyModule : public zygisk::ModuleBase {
+class RevenyZygiskModule : public zygisk::ModuleBase {
 public:
-    void onLoad(Api *_api, JNIEnv *_env) override {
-        this->api = _api;
-        this->env = _env;
+    void onLoad(Api *api, JNIEnv *env) override {
+        this->api = api;
+        this->env = env;
     }
 
     void preAppSpecialize(AppSpecializeArgs *args) override {
-        auto packageName = env->GetStringUTFChars(args->nice_name, nullptr);
-
-        preSpecialize(packageName);
-        env->ReleaseStringUTFChars(args->nice_name, packageName);
     }
 
-    void postAppSpecialize(const AppSpecializeArgs *) override {
-        if (!enableHack) {
-            api->setOption(zygisk::Option::DLCLOSE_MODULE_LIBRARY);
-            return;
-        }
-
-        // Run cheat
-        std::thread([] {
-            ModMenu::HackThread();
-        }).detach();
+    void postAppSpecialize(const AppSpecializeArgs *args) override {
     }
+
+    void preServerSpecialize(ServerSpecializeArgs *args) override {
+    }
+
+    void postServerSpecialize(const ServerSpecializeArgs *args) override {
+    }
+
 private:
-    Api *api{};
-    JNIEnv *env{};
-    bool enableHack{};
-
-    void preSpecialize(const char *packageName) {
-        if (std::string(packageName) != TARGET_PACKAGE) {
-            api->setOption(zygisk::Option::DLCLOSE_MODULE_LIBRARY);
-            return;
-        }
-
-        LOGI("detect game: %s", packageName);
-        enableHack = true;
-    }
+    Api *api;
+    JNIEnv *env;
 };
 
-REGISTER_ZYGISK_MODULE(MyModule)
+REGISTER_ZYGISK_MODULE(RevenyZygiskModule)
