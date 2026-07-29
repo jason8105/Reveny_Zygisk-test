@@ -5,6 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:  # <--- Yeh 'branches:' ke barabar seedh mein hona chahiye
 
 jobs:
   build:
