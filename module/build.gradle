@@ -1,39 +1,30 @@
-apply plugin: 'com.android.library'
+plugins {
+    id 'com.android.library'
+}
 
 android {
-    compileSdkVersion 34
-    buildToolsVersion "34.0.0"
-    
-    if (respondTo("namespace")) {
-        namespace "com.github.reveny.zygisk"
+    if (respondsTo("namespace")) {
+        namespace "com.reveny.zygisk"
     }
 
+    compileSdk 34
+
     defaultConfig {
-        minSdkVersion 21
-        targetSdkVersion 34
-        
-        externalNativeBuild {
-            if (file("src/main/cpp/CMakeLists.txt").exists()) {
-                cmake {
-                    arguments "-DANDROID_STL=c++_shared"
-                }
-            } else if (file("src/main/jni/Android.mk").exists()) {
-                ndkBuild {
-                    abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-                }
-            }
+        minSdk 27
+        targetSdk 34
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
     externalNativeBuild {
-        if (file("src/main/cpp/CMakeLists.txt").exists()) {
-            cmake {
-                path "src/main/cpp/CMakeLists.txt"
-            }
-        } else if (file("src/main/jni/Android.mk").exists()) {
-            ndkBuild {
-                path "src/main/jni/Android.mk"
-            }
+        ndkBuild {
+            path "src/main/jni/Android.mk"
         }
     }
 }
