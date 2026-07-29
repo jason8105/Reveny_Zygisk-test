@@ -2,36 +2,28 @@
 #include <android/log.h>
 #include "zygisk.hpp"
 
-using zygisk::Api;
-using zygisk::AppSpecializeArgs;
-using zygisk::ServerSpecializeArgs;
+#define LOG_TAG "RevenyZygisk"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
-class RevenyZygisk : public zygisk::ModuleBase {
+class RevenyModule : public zygisk::ModuleBase {
 public:
-    void onLoad(Api *api, JNIEnv *env) override {
+    void onLoad(zygisk::Api *api, JNIEnv *env) override {
         this->api = api;
         this->env = env;
+        LOGD("Reveny Zygisk module loaded successfully");
     }
 
-    void preAppSpecialize(AppSpecializeArgs *args) override {
-        __android_log_print(ANDROID_LOG_INFO, "RevenyZygisk", "preAppSpecialize");
+    void preAppSpecialize(zygisk::AppSpecializeArgs *args) override {
+        LOGD("preAppSpecialize execution");
     }
 
-    void postAppSpecialize(const AppSpecializeArgs *args) override {
-        __android_log_print(ANDROID_LOG_INFO, "RevenyZygisk", "postAppSpecialize");
-    }
-
-    void preServerSpecialize(ServerSpecializeArgs *args) override {
-        __android_log_print(ANDROID_LOG_INFO, "RevenyZygisk", "preServerSpecialize");
-    }
-
-    void postServerSpecialize(const ServerSpecializeArgs *args) override {
-        __android_log_print(ANDROID_LOG_INFO, "RevenyZygisk", "postServerSpecialize");
+    void postAppSpecialize(const zygisk::AppSpecializeArgs *args) override {
+        LOGD("postAppSpecialize execution");
     }
 
 private:
-    Api *api;
-    JNIEnv *env;
+    zygisk::Api *api = nullptr;
+    JNIEnv *env = nullptr;
 };
 
-REGISTER_ZYGISK_MODULE(RevenyZygisk)
+REGISTER_ZYGISK_MODULE(RevenyModule)
