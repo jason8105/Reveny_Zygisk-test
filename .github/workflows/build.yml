@@ -36,32 +36,46 @@ jobs:
 
     - name: Pack Magisk Module Zip
       run: |
-        mkdir -p output_zip
-        mkdir -p magisk_pkg/system/lib64
+        echo "[*] Creating Magisk Module Structure..."
+        mkdir -p RevenyZygisk
+        mkdir -p RevenyZygisk/META-INF/com/google/android
+        mkdir -p RevenyZygisk/system/lib64
         
-        # Copy compiled binaries to the module system folder
-        find . -name "*.so" -exec cp {} magisk_pkg/system/lib64/ \;
+        echo "[*] Copying Compiled Binaries..."
+        # Extract the compiled .so from build output directly to the new structure
+        find . -name "libreveny.so" -type f -exec cp {} RevenyZygisk/system/lib64/ \;
         
-        # Copy module configuration files if they exist
-        if [ -d "module" ]; then
-          cp -r module/* magisk_pkg/ 2>/dev/null || true
-        fi
+        echo "[*] Creating module.prop..."
+        cat << 'EOF' > RevenyZygisk/module.prop
+        id=reveny_zygisk
+        name=Reveny Zygisk Mod
+        version=v1.0
+        versionCode=1
+        author=Reveny
+        description=A Zygisk module for Reveny automatically built via GitHub Actions
+        EOF
         
-        # Create standard module properties if missing
-        if [ ! -f "magisk_pkg/module.prop" ]; then
-          echo "id=reveny_zygisk" > magisk_pkg/module.prop
-          echo "name=Reveny Zygisk Mod" >> magisk_pkg/module.prop
-          echo "version=v1.0" >> magisk_pkg/module.prop
-          echo "versionCode=1" >> magisk_pkg/versionCode=1
-          echo "author=Reveny" >> magisk_pkg/author=Reveny
-          echo "description=Zygisk module built automatically via GitHub Actions" >> magisk_pkg/description=Zygisk module built automatically via GitHub Actions
-        fi
+        echo "[*] Creating update-binary and updater-script..."
+        cat << 'EOF' > RevenyZygisk/META-INF/com/google/android/updater-script
+        ui_print("******************************");
+        ui_print(" Reveny Zygisk Module ");
+        ui_print("******************************");
+        set_perm_recursive(0, 0, 0755, 0644, $MODPATH/system);
+        ui_print("Installation Complete!");
+        EOF
         
-        # Create final flashable zip package
-        cd magisk_pkg && zip -r ../output_zip/Reveny_Zygisk_Flashable.zip .
+        echo "#!/sbin/sh" > RevenyZygisk/META-INF/com/google/android/update-binary
+        echo "unzip -o \"\$3\" 'META-INF/com/google/android/updater-script' -d /tmp" >> RevenyZygisk/META-INF/com/google/android/update-binary
+        echo "package_extract_dir update /tmp" >> RevenyZygisk/META-INF/com/google/android/update-binary
+        chmod +x RevenyZygisk/META-INF/com/google/android/update-binary
+        
+        echo "[*] Zipping the clean module..."
+        cd RevenyZygisk && zip -r9 ../Reveny_Zygisk_Flashable.zip .
+        cd ..
 
     - name: Upload Module Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Magisk-Module-Zip
-        path: output_zip/*.zip
+        path: Reveny_Zygisk_Flashable.zip
+        
