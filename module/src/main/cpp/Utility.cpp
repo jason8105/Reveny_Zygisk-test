@@ -2,7 +2,8 @@
 // Created by Reveny on 1/6/2025.
 //
 #include <Headers/Utility.hpp>
-
+#include <sys/uio.h>
+#include <unistd.h>
 #include <KittyMemory.h>
 
 size_t Utility::ProcessVMRead(pid_t pid, void *local, void *remote, size_t size) {
