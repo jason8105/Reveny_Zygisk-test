@@ -32,7 +32,7 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleRelease
 
-    - name: Prepare Magisk Module Files
+    - name: Pack Magisk Module Zip
       run: |
         echo "[*] Creating Magisk Module Structure..."
         mkdir -p RevenyZygisk/META-INF/com/google/android
@@ -42,22 +42,37 @@ jobs:
         find . -name "libreveny.so" -type f -exec cp {} RevenyZygisk/system/lib64/ \;
         
         echo "[*] Creating module.prop..."
-        echo "id=reveny_zygisk" > RevenyZygisk/module.prop
-        echo "name=Reveny Zygisk Mod" >> RevenyZygisk/module.prop
-        echo "version=v1.0" >> RevenyZygisk/module.prop
-        echo "versionCode=1" >> RevenyZygisk/module.prop
-        echo "author=Reveny" >> RevenyZygisk/module.prop
-        echo "description=A Zygisk module built automatically" >> RevenyZygisk/module.prop
+        cat << 'EOF' > RevenyZygisk/module.prop
+        id=reveny_zygisk
+        name=Reveny Zygisk Mod
+        version=v1.0
+        versionCode=1
+        author=Reveny
+        description=A Zygisk module built automatically
+        EOF
         
-        echo "[*] Creating Magisk installer scripts..."
-        echo "#MAGISK" > RevenyZygisk/META-INF/com/google/android/update-binary
+        echo "[*] Creating Proper Magisk installer scripts..."
+        # Yahan main Magisk ka proper extraction code daal raha hoon
+        cat << 'EOF' > RevenyZygisk/META-INF/com/google/android/update-binary
+        #MAGISK
+        ui_print "- Extracting module files..."
+        unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2
+        ui_print "- Setting permissions..."
+        set_perm_recursive "$MODPATH" 0 0 0755 0644
+        ui_print "- Installation Complete!"
+        EOF
+        
         chmod +x RevenyZygisk/META-INF/com/google/android/update-binary
         touch RevenyZygisk/META-INF/com/google/android/updater-script
+        
+        echo "[*] Zipping the clean module..."
+        cd RevenyZygisk
+        zip -r9 ../Reveny_Zygisk_Flashable.zip .
+        cd ..
 
     - name: Upload Module Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Reveny_Zygisk_Flashable
-        # Yahan hum seedha folder upload kar rahe hain, GitHub isko perfectly zip kar dega
-        path: RevenyZygisk/
+        name: Magisk-Module-Release
+        path: Reveny_Zygisk_Flashable.zip
         
