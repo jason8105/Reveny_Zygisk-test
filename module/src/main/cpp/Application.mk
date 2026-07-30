@@ -1,6 +1,4 @@
-APP_ABI := arm64-v8a armeabi-v7a x86 x86_64
-APP_PLATFORM := android-26
+APP_ABI := arm64-v8a armeabi-v7a
+APP_PLATFORM := android-21
 APP_STL := c++_static
-APP_CPPFLAGS := -std=c++20 -O3 -Wall -Wextra
-APP_CFLAGS := -O3 -Wall
-APP_LDFLAGS := -Wl,--gc-sections
+APP_CPPFLAGS := -std=c++17 -fexceptions -frtti -fno-char8_t
