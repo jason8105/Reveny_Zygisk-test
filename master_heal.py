@@ -3,32 +3,49 @@ import time
 import subprocess
 import requests
 import re
+import json
 
-# API Keys aur Model rotation pool
+# API Keys pool
 API_KEYS_POOL = {
     1: os.environ.get("GEMINI_KEY_1", ""),
     2: os.environ.get("GEMINI_KEY_2", "")
 }
-MODELS_POOL = [
-    "models/gemini-3.5-flash",
-    "models/gemini-3.1-flash-lite",
-    "models/gemini-3-flash-preview"
-]
 
-current_key_id = 1
-current_model_idx = 0
+def load_highest_token_models():
+    """Automatically reads allmodelai.json and picks ALL text models sorted by highest inputTokenLimit"""
+    try:
+        if os.path.exists("allmodelai.json"):
+            with open("allmodelai.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+                models_list = data.get("models", [])
+                
+                valid_models = []
+                for m in models_list:
+                    methods = m.get("supportedGenerationMethods", [])
+                    if "generateContent" in methods:
+                        valid_models.append({
+                            "name": m.get("name"),
+                            "tokens": m.get("inputTokenLimit", 0)
+                        })
+                
+                # Sort highest to lowest token limit
+                valid_models.sort(key=lambda x: x["tokens"], reverse=True)
+                
+                all_models = [item["name"] for item in valid_models]
+                if all_models:
+                    print(f"[*] Auto-loaded ALL models from JSON (Highest to Lowest): {all_models}")
+                    return all_models
+    except Exception as e:
+        print(f"[!] Error reading JSON model list: {e}")
+    
+    return [
+        "models/gemini-2.5-flash",
+        "models/gemini-2.5-pro",
+        "models/gemini-2.0-flash",
+        "models/gemini-2.0-flash-001"
+    ]
 
-def get_next_gemini_key():
-    global current_key_id
-    key = API_KEYS_POOL.get(current_key_id)
-    current_key_id = (current_key_id % len(API_KEYS_POOL)) + 1
-    return key
-
-def get_next_model():
-    global current_model_idx
-    model = MODELS_POOL[current_model_idx]
-    current_model_idx = (current_model_idx + 1) % len(MODELS_POOL)
-    return model
+MODELS_POOL = load_highest_token_models()
 
 REPO_OWNER = "jason8105"
 REPO_NAME = "Reveny_Zygisk-test"
@@ -129,29 +146,33 @@ ERROR LOGS:
         }]
     }
 
-    for attempt in range(len(MODELS_POOL)):
-        active_key = get_next_gemini_key()
-        model_name = get_next_model()
-        url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={active_key}"
-
-        print(f"[*] Asking Gemini using Model: {model_name} (Attempt {attempt + 1}/{len(MODELS_POOL)})...")
-
-        try:
-            response = requests.post(url, json=payload, timeout=30)
-            res_json = response.json()
-            if "candidates" in res_json:
-                return res_json["candidates"][0]["content"]["parts"][0]["text"]
-            else:
-                error_msg = res_json.get('error', {}).get('message', 'Unknown Error')
-                print(f"[!] Model {model_name} failed: {error_msg}. Switching to next model...")
-                time.sleep(2)
-                continue
-        except Exception as e:
-            print(f"[!] Request failed for {model_name}: {str(e)}. Switching to next model...")
-            time.sleep(2)
+    # Step 1: Loop through each API Key
+    for key_id, active_key in API_KEYS_POOL.items():
+        if not active_key:
             continue
+            
+        print(f"\n[*] Switching to API Key ID: {key_id}")
+        
+        # Step 2: Try ALL models from JSON using the current API key
+        for model_name in MODELS_POOL:
+            url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={active_key}"
+            print(f"[*] Trying Model: {model_name} with API Key ID: {key_id}...")
 
-    return f"API Error / Limit Reached: All models failed after retries."
+            try:
+                response = requests.post(url, json=payload, timeout=30)
+                res_json = response.json()
+                if "candidates" in res_json:
+                    print(f"[+] Success using Model: {model_name} on API Key ID: {key_id}")
+                    return res_json["candidates"][0]["content"]["parts"][0]["text"]
+                else:
+                    error_msg = res_json.get('error', {}).get('message', 'Unknown Error')
+                    print(f"[!] Model {model_name} failed with Key {key_id}: {error_msg}")
+                    time.sleep(1)
+            except Exception as e:
+                print(f"[!] Network error for {model_name} with Key {key_id}: {str(e)}")
+                time.sleep(1)
+
+    return f"API Error / Limit Reached: All keys and JSON models failed completely."
 
 def apply_ai_patches(ai_response):
     changes_made = []
