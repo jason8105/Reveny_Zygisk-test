@@ -8,13 +8,13 @@ import re
 API_KEYS_POOL = {
     1: os.environ.get("GEMINI_KEY_1", ""),
     2: os.environ.get("GEMINI_KEY_2", "")
-}                                                                                                                                                                 
+}
 MODELS_POOL = [
-    "models/gemini-3.6-flash",
     "models/gemini-3.5-flash",
-    "models/gemini-2.5-pro"
+    "models/gemini-3.1-flash-lite",
+    "models/gemini-3-flash-preview"
 ]
-                                                  
+
 current_key_id = 1
 current_model_idx = 0
 
