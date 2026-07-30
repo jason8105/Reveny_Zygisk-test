@@ -32,7 +32,7 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleRelease
 
-    - name: Pack Magisk Module Zip
+    - name: Prepare Magisk Module Files
       run: |
         echo "[*] Creating Magisk Module Structure..."
         mkdir -p RevenyZygisk/META-INF/com/google/android
@@ -41,7 +41,7 @@ jobs:
         echo "[*] Copying Compiled Binaries..."
         find . -name "libreveny.so" -type f -exec cp {} RevenyZygisk/system/lib64/ \;
         
-        echo "[*] Creating STRICT module.prop (NO SPACES ALLOWED)..."
+        echo "[*] Creating module.prop..."
         echo "id=reveny_zygisk" > RevenyZygisk/module.prop
         echo "name=Reveny Zygisk Mod" >> RevenyZygisk/module.prop
         echo "version=v1.0" >> RevenyZygisk/module.prop
@@ -50,19 +50,14 @@ jobs:
         echo "description=A Zygisk module built automatically" >> RevenyZygisk/module.prop
         
         echo "[*] Creating Magisk installer scripts..."
-        # #MAGISK tag is required for Magisk to recognize and auto-install it properly
         echo "#MAGISK" > RevenyZygisk/META-INF/com/google/android/update-binary
         chmod +x RevenyZygisk/META-INF/com/google/android/update-binary
         touch RevenyZygisk/META-INF/com/google/android/updater-script
-        
-        echo "[*] Zipping the clean module..."
-        cd RevenyZygisk
-        zip -r9 ../Reveny_Zygisk_Flashable.zip .
-        cd ..
 
     - name: Upload Module Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Magisk-Module-Zip
-        path: Reveny_Zygisk_Flashable.zip
+        name: Reveny_Zygisk_Flashable
+        # Yahan hum seedha folder upload kar rahe hain, GitHub isko perfectly zip kar dega
+        path: RevenyZygisk/
         
