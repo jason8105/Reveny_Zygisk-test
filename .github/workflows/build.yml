@@ -39,24 +39,25 @@ jobs:
         mkdir -p output_zip
         mkdir -p magisk_pkg/system/lib64
         
-        # Copy compiled binaries from build outputs to the module system folder
+        # Copy compiled binaries to the module system folder
         find . -name "*.so" -exec cp {} magisk_pkg/system/lib64/ \;
         
-        # Copy module configuration files if they exist, or create standard props
+        # Copy module configuration files if they exist
         if [ -d "module" ]; then
           cp -r module/* magisk_pkg/ 2>/dev/null || true
         fi
         
+        # Create standard module properties if missing
         if [ ! -f "magisk_pkg/module.prop" ]; then
           echo "id=reveny_zygisk" > magisk_pkg/module.prop
           echo "name=Reveny Zygisk Mod" >> magisk_pkg/module.prop
           echo "version=v1.0" >> magisk_pkg/module.prop
-          echo "versionCode=1" >> magisk_pkg/module.prop
-          echo "author=Reveny" >> magisk_pkg/module.prop
-          echo "description=Zygisk module built automatically via GitHub Actions" >> magisk_pkg/module.prop
+          echo "versionCode=1" >> magisk_pkg/versionCode=1
+          echo "author=Reveny" >> magisk_pkg/author=Reveny
+          echo "description=Zygisk module built automatically via GitHub Actions" >> magisk_pkg/description=Zygisk module built automatically via GitHub Actions
         fi
         
-        # Create final flashable zip
+        # Create final flashable zip package
         cd magisk_pkg && zip -r ../output_zip/Reveny_Zygisk_Flashable.zip .
 
     - name: Upload Module Artifact

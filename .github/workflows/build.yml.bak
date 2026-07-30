@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # <--- Yeh 'branches:' ke barabar seedh mein hona chahiye
+  workflow_dispatch:
 
 jobs:
   build:
@@ -32,4 +32,35 @@ jobs:
       run: chmod +x ./gradlew
 
     - name: Build with Gradle
-      run: ./gradlew assembleDebug
+      run: ./gradlew assembleRelease
+
+    - name: Pack Magisk Module Zip
+      run: |
+        mkdir -p output_zip
+        mkdir -p magisk_pkg/system/lib64
+        
+        # Copy compiled binaries from build outputs to the module system folder
+        find . -name "*.so" -exec cp {} magisk_pkg/system/lib64/ \;
+        
+        # Copy module configuration files if they exist, or create standard props
+        if [ -d "module" ]; then
+          cp -r module/* magisk_pkg/ 2>/dev/null || true
+        fi
+        
+        if [ ! -f "magisk_pkg/module.prop" ]; then
+          echo "id=reveny_zygisk" > magisk_pkg/module.prop
+          echo "name=Reveny Zygisk Mod" >> magisk_pkg/module.prop
+          echo "version=v1.0" >> magisk_pkg/module.prop
+          echo "versionCode=1" >> magisk_pkg/module.prop
+          echo "author=Reveny" >> magisk_pkg/module.prop
+          echo "description=Zygisk module built automatically via GitHub Actions" >> magisk_pkg/module.prop
+        fi
+        
+        # Create final flashable zip
+        cd magisk_pkg && zip -r ../output_zip/Reveny_Zygisk_Flashable.zip .
+
+    - name: Upload Module Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Magisk-Module-Zip
+        path: output_zip/*.zip
