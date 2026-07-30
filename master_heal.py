@@ -177,6 +177,12 @@ ERROR LOGS:
 def apply_ai_patches(ai_response):
     changes_made = []
 
+    # Agar response khali hai ya error hai, toh file se read karne ki koshish karo
+    if not ai_response or "API Error" in ai_response:
+        if os.path.exists("ai_fix_suggestion.txt"):
+            with open("ai_fix_suggestion.txt", "r", encoding="utf-8") as f:
+                ai_response = f.read()
+
     pattern_file = r"=== FILE:\s*(.*?)===\s*\n(.*?)\s*=== END FILE ==="
     matches_file = re.findall(pattern_file, ai_response, re.DOTALL)
     for file_path, content in matches_file:
