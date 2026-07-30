@@ -35,29 +35,40 @@ jobs:
     - name: Prepare Magisk Module Files
       run: |
         echo "[*] Creating Magisk Module Structure..."
-        mkdir -p MagiskModule/META-INF/com/google/android
-        mkdir -p MagiskModule/system/lib64
+        # Create a dedicated directory OUTSIDE the main project files
+        mkdir -p /tmp/RevenyZygisk/META-INF/com/google/android
+        mkdir -p /tmp/RevenyZygisk/system/lib64
         
         echo "[*] Copying Compiled Binaries..."
-        find . -name "libreveny.so" -type f -exec cp {} MagiskModule/system/lib64/ \;
+        find . -name "libreveny.so" -type f -exec cp {} /tmp/RevenyZygisk/system/lib64/ \;
         
-        echo "[*] Creating STRICT module.prop..."
-        echo "id=reveny_zygisk" > MagiskModule/module.prop
-        echo "name=Reveny Zygisk Mod" >> MagiskModule/module.prop
-        echo "version=v1.0" >> MagiskModule/module.prop
-        echo "versionCode=1" >> MagiskModule/module.prop
-        echo "author=Reveny" >> MagiskModule/module.prop
-        echo "description=A Zygisk module built automatically" >> MagiskModule/module.prop
+        echo "[*] Creating module.prop..."
+        cat << 'EOF' > /tmp/RevenyZygisk/module.prop
+        id=reveny_zygisk
+        name=Reveny Zygisk Mod
+        version=v1.0
+        versionCode=1
+        author=Reveny
+        description=A Zygisk module built automatically
+        EOF
         
         echo "[*] Creating Magisk installer scripts..."
-        echo "#MAGISK" > MagiskModule/META-INF/com/google/android/update-binary
-        chmod +x MagiskModule/META-INF/com/google/android/update-binary
-        touch MagiskModule/META-INF/com/google/android/updater-script
+        cat << 'EOF' > /tmp/RevenyZygisk/META-INF/com/google/android/update-binary
+        #MAGISK
+        ui_print "- Extracting module files..."
+        unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2
+        ui_print "- Setting permissions..."
+        set_perm_recursive "$MODPATH" 0 0 0755 0644
+        ui_print "- Installation Complete!"
+        EOF
+        
+        chmod +x /tmp/RevenyZygisk/META-INF/com/google/android/update-binary
+        touch /tmp/RevenyZygisk/META-INF/com/google/android/updater-script
 
     - name: Upload Module Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Reveny_Zygisk_Flashable
-        # Yahan hum seedha folder de rahe hain, ab koi double zip ka chakkar nahi hoga
-        path: MagiskModule/
+        # Point EXACTLY to the temporary folder we created
+        path: /tmp/RevenyZygisk/*
         
